@@ -1,33 +1,185 @@
-.dashboard{
-display:grid;
-grid-template-columns:repeat(4,1fr);
-gap:30px;
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;700;900&family=Rajdhani:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500&display=swap');
+
+.dashboard {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 20px;
 }
 
-.metric-card{
-background:#0f172a;
-padding:25px;
-border-radius:16px;
-box-shadow:0 0 40px rgba(0,0,0,0.6);
-transition:0.3s;
+.metric-card {
+  background: rgba(255,255,255,0.02);
+  border: 1px solid rgba(0,212,255,0.1);
+  border-radius: 10px;
+  padding: 24px 20px;
+  position: relative;
+  overflow: hidden;
+  cursor: default;
+  transition: transform 0.4s cubic-bezier(0.23,1,0.32,1),
+              box-shadow 0.4s ease,
+              border-color 0.4s ease;
+  backdrop-filter: blur(10px);
 }
 
-.metric-card:hover{
-transform:translateY(-8px);
-box-shadow:0 0 30px rgba(96,165,250,0.5);
+.metric-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0;
+  width: 40px; height: 40px;
+  border-top: 2px solid rgba(0,212,255,0.4);
+  border-left: 2px solid rgba(0,212,255,0.4);
+  border-radius: 10px 0 0 0;
+  transition: all 0.4s;
 }
 
-.metric-card input{
-width:100%;
-margin-top:12px;
-padding:10px;
-border-radius:8px;
-border:none;
-background:#020617;
-color:white;
+/* Bottom-right corner accent */
+.metric-card::after {
+  content: '';
+  position: absolute;
+  bottom: 0; right: 0;
+  width: 20px; height: 20px;
+  border-bottom: 1px solid rgba(0,212,255,0.2);
+  border-right: 1px solid rgba(0,212,255,0.2);
+  border-radius: 0 0 10px 0;
+  transition: all 0.4s;
 }
 
-.icon{
-margin-bottom:10px;
-color:#60a5fa;
+.metric-card:hover {
+  transform: translateY(-8px) scale(1.01);
+  border-color: rgba(0,212,255,0.35);
+  box-shadow:
+    0 20px 60px rgba(0,0,0,0.5),
+    0 0 30px rgba(0,212,255,0.12),
+    inset 0 1px 0 rgba(255,255,255,0.05);
+}
+.metric-card:hover::before {
+  width: 60px; height: 60px;
+  border-color: rgba(0,212,255,0.8);
+  box-shadow: 0 0 10px rgba(0,212,255,0.4);
+}
+
+/* Card index badge */
+.card-index {
+  position: absolute;
+  top: 12px;
+  right: 14px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px;
+  color: rgba(0,212,255,0.25);
+  letter-spacing: 1px;
+}
+
+/* Icon */
+.metric-icon {
+  font-size: 22px;
+  margin-bottom: 12px;
+  display: block;
+  filter: drop-shadow(0 0 6px currentColor);
+  transition: transform 0.3s;
+}
+.metric-card:hover .metric-icon {
+  transform: scale(1.2) rotate(-5deg);
+}
+
+/* Label */
+.metric-label {
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: rgba(100,160,200,0.7);
+  margin-bottom: 8px;
+}
+
+/* Value */
+.metric-value {
+  font-family: 'Orbitron', monospace;
+  font-size: 2rem;
+  font-weight: 700;
+  color: #e8f4ff;
+  letter-spacing: -1px;
+  line-height: 1;
+  margin-bottom: 14px;
+  transition: color 0.4s;
+}
+.metric-value .unit {
+  font-size: 0.7em;
+  color: rgba(0,212,255,0.5);
+  font-weight: 400;
+  letter-spacing: 1px;
+  margin-left: 3px;
+}
+
+/* Bar */
+.metric-bar-bg {
+  background: rgba(0,0,0,0.4);
+  border-radius: 2px;
+  height: 3px;
+  overflow: hidden;
+  position: relative;
+}
+.metric-bar-fill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.8s cubic-bezier(0.23,1,0.32,1), background 0.5s;
+  position: relative;
+}
+.metric-bar-fill::after {
+  content: '';
+  position: absolute;
+  right: 0; top: -2px;
+  width: 6px; height: 7px;
+  border-radius: 50%;
+  background: inherit;
+  filter: blur(3px);
+  opacity: 0.9;
+}
+
+/* Status dot */
+.metric-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 10px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px;
+  letter-spacing: 1px;
+  color: rgba(100,160,200,0.5);
+  text-transform: uppercase;
+}
+.status-dot {
+  width: 5px; height: 5px;
+  border-radius: 50%;
+  animation: statusPulse 2s ease-in-out infinite;
+}
+@keyframes statusPulse {
+  0%,100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.5); opacity: 0.6; }
+}
+
+/* Critical state */
+.metric-card.state-critical {
+  border-color: rgba(255,45,85,0.25);
+  animation: critShake 0.5s ease-in-out;
+}
+.metric-card.state-critical::before {
+  border-color: rgba(255,45,85,0.5);
+}
+.metric-card.state-critical .metric-value { color: #ff2d55; }
+
+/* Warning state */
+.metric-card.state-warning {
+  border-color: rgba(255,214,10,0.2);
+}
+.metric-card.state-warning .metric-value { color: #ffd60a; }
+
+@keyframes critShake {
+  0%,100% { transform: translateX(0); }
+  25% { transform: translateX(-3px); }
+  75% { transform: translateX(3px); }
+}
+
+/* Glow pulse on hover */
+.metric-card:hover .metric-bar-fill {
+  box-shadow: 0 0 8px currentColor;
 }

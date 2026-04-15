@@ -1,34 +1,40 @@
 import React from "react";
 import "./Login.css";
 
-export default function Login({onLogin}){
+export default function Login({ onLogin }) {
+  return (
+    <div className="login-container">
+      <div className="login-grid" />
 
-return(
+      <div className="login-card">
+        <h1 className="login-logo">DeviceGuard</h1>
+        <p className="login-tag">AI · Powered · Device · Security</p>
 
-<div className="login-container">
+        <div className="login-input-group">
+          <label className="login-input-label">Full Name</label>
+          <input type="text" placeholder="Enter your name" />
+        </div>
 
-<div className="login-card">
+        <div className="login-input-group">
+          <label className="login-input-label">Email Address</label>
+          <input type="email" placeholder="you@company.com" />
+        </div>
 
-<h1 className="login-logo">DeviceGuard</h1>
+        <div className="login-input-group">
+          <label className="login-input-label">Password</label>
+          <input type="password" placeholder="••••••••••••" />
+        </div>
 
-<p className="login-tag">
-AI Powered Device Security
-</p>
+        <div className="login-divider" />
 
-<input type="text" placeholder="Full Name"/>
+        <button className="login-btn" onClick={onLogin}>
+          Initialize Session
+        </button>
 
-<input type="email" placeholder="Email Address"/>
-
-<input type="password" placeholder="Password"/>
-
-<button className="login-btn" onClick={onLogin}>
-Login
-</button>
-
-</div>
-
-</div>
-
-)
-
+        <p className="login-footer">
+          Secured · Encrypted · v2.4.1
+        </p>
+      </div>
+    </div>
+  );
 }
