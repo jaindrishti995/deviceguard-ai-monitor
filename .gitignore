@@ -25,3 +25,5 @@ yarn-error.log*
 __pycache__/
 *.pyc
 node_modules/
+*.pkl
+*.csv

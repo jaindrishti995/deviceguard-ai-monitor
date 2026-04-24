@@ -1,50 +1,71 @@
-#train_model.py
+"""
+train_model.py
+Trains a Random Forest classifier and saves model.pkl + scaler.pkl.
+
+Usage:
+  python train_model.py                          # uses simulation
+  python train_model.py --data cleaned_dataset.csv
+"""
+
+import argparse
 import joblib
+import numpy as np
 import pandas as pd
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.model_selection import train_test_split, cross_val_score
-from sklearn.metrics import classification_report, confusion_matrix
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import classification_report
+from sklearn.preprocessing import MinMaxScaler
 
-from preprocessing import load_and_process
+from preprocessing import generate_simulated_dataset, FEATURES
 
-FEATURES = ["cpu", "ram", "disk", "temperature", "humidity", "fan", "dust", "battery"]
+DATA_PATH   = "cleaned_dataset.csv"
+MODEL_PATH  = "model.pkl"
+SCALER_PATH = "scaler.pkl"
 
-print("🔄 Loading dataset …")
-df, features = load_and_process(n_rows=5000, save_scaler=True)
 
-# Label creation
-df["label"] = (
-    (df["cpu"] > 0.75).astype(int) +
-    (df["ram"] > 0.75).astype(int) +
-    (df["disk"] > 0.80).astype(int) +
-    (df["temperature"] > 0.65).astype(int) +
-    (df["fan"] > 0.70).astype(int) +
-    (df["humidity"] > 0.75).astype(int)
-)
-df["label"] = (df["label"] >= 2).astype(int)
+def train(data_path=DATA_PATH):
+    try:
+        df = pd.read_csv(data_path)
+        print(f"📂 Loaded dataset: {df.shape}")
+    except FileNotFoundError:
+        print(f"⚠️  {data_path} not found — generating simulation data...")
+        df = generate_simulated_dataset(10000, data_path)
 
-X = df[FEATURES]
-y = df["label"]
+    X = df[FEATURES].values
+    y = df["label"].values
 
-X_train, X_test, y_train, y_test = train_test_split(
-    X, y, test_size=0.2, random_state=42, stratify=y
-)
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y, test_size=0.2, random_state=42, stratify=y
+    )
 
-model = RandomForestClassifier(
-    n_estimators=200,
-    max_depth=10,
-    min_samples_leaf=4,
-    class_weight="balanced",
-    random_state=42,
-    n_jobs=-1,
-)
+    print(f"\n🏋️  Training on {len(X_train)} samples...")
+    clf = RandomForestClassifier(
+        n_estimators=150,
+        max_depth=12,
+        min_samples_leaf=5,
+        class_weight="balanced",
+        random_state=42,
+        n_jobs=-1,
+    )
+    clf.fit(X_train, y_train)
 
-model.fit(X_train, y_train)
+    print("\n📊 Evaluation on test set:")
+    y_pred = clf.predict(X_test)
+    print(classification_report(y_test, y_pred, target_names=["Healthy", "At Risk"]))
 
-y_pred = model.predict(X_test)
-print("\nAccuracy:", model.score(X_test, y_test))
-print(classification_report(y_test, y_pred))
-print(confusion_matrix(y_test, y_pred))
+    joblib.dump(clf, MODEL_PATH)
+    print(f"✅ model.pkl saved → {MODEL_PATH}")
 
-joblib.dump(model, "model.pkl")
-print("✅ model.pkl saved")
+    # Importance
+    imp = sorted(zip(FEATURES, clf.feature_importances_), key=lambda x: -x[1])
+    print("\n📌 Feature importances:")
+    for feat, score in imp:
+        bar = "█" * int(score * 40)
+        print(f"  {feat:12s} {bar} {score:.3f}")
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--data", type=str, default=DATA_PATH)
+    args = parser.parse_args()
+    train(args.data)

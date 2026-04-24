@@ -1,0 +1,778 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>DeviceGuard — IT Health Monitor</title>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#080c14;
+  --surface:#0d1117;
+  --card:#111722;
+  --card2:#151d2b;
+  --border:rgba(255,255,255,0.07);
+  --border2:rgba(255,255,255,0.13);
+  --text:#eef2f8;
+  --muted:#6b7a96;
+  --muted2:#8b99b5;
+  --blue:#4f8ef7;
+  --blue2:#7aaeff;
+  --green:#22c55e;
+  --yellow:#eab308;
+  --orange:#f97316;
+  --red:#ef4444;
+  --purple:#a78bfa;
+  --cyan:#22d3ee;
+  --font:'Outfit',sans-serif;
+  --mono:'DM Mono',monospace;
+}
+body{background:var(--bg);color:var(--text);font-family:var(--font);min-height:100vh;overflow-x:hidden}
+
+/* ─── Noise texture ─── */
+body::before{
+  content:'';position:fixed;inset:0;
+  background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.025'/%3E%3C/svg%3E");
+  pointer-events:none;z-index:0;opacity:.4;
+}
+
+/* ─── Scrollbar ─── */
+::-webkit-scrollbar{width:5px}
+::-webkit-scrollbar-track{background:var(--surface)}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:99px}
+
+/* ─── LOGIN ─── */
+#login-page{
+  display:flex;align-items:center;justify-content:center;
+  min-height:100vh;position:relative;z-index:1;
+}
+#login-page::before{
+  content:'';position:absolute;inset:0;
+  background:radial-gradient(ellipse 60% 50% at 50% 40%,rgba(79,142,247,.08) 0%,transparent 70%);
+  pointer-events:none;
+}
+.login-wrap{
+  background:var(--card);border:1px solid var(--border);
+  border-radius:20px;padding:44px 40px;width:400px;
+  position:relative;z-index:1;
+  animation:loginIn .45s cubic-bezier(.16,1,.3,1);
+}
+@keyframes loginIn{from{opacity:0;transform:translateY(20px) scale(.98)}to{opacity:1;transform:none}}
+.login-brand{display:flex;align-items:center;gap:12px;margin-bottom:32px}
+.login-icon{
+  width:40px;height:40px;border-radius:10px;
+  background:linear-gradient(135deg,#4f8ef7,#a78bfa);
+  display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;
+}
+.login-brand-name{font-size:20px;font-weight:800;letter-spacing:-.5px}
+.login-brand-tag{font-size:11px;color:var(--muted);letter-spacing:.4px;margin-top:1px;text-transform:uppercase}
+.field{margin-bottom:16px}
+.field label{display:block;font-size:12px;font-weight:600;color:var(--muted2);letter-spacing:.5px;text-transform:uppercase;margin-bottom:6px}
+.field input{
+  width:100%;padding:11px 15px;background:rgba(255,255,255,.04);
+  border:1px solid var(--border);border-radius:10px;
+  color:var(--text);font-family:var(--font);font-size:14px;outline:none;transition:border .2s,background .2s;
+}
+.field input:focus{border-color:var(--blue);background:rgba(79,142,247,.05)}
+.login-btn{
+  width:100%;padding:12px;margin-top:6px;
+  background:linear-gradient(135deg,var(--blue),var(--purple));
+  border:none;border-radius:10px;color:#fff;
+  font-family:var(--font);font-size:15px;font-weight:700;cursor:pointer;
+  transition:opacity .2s,transform .1s;letter-spacing:.2px;
+}
+.login-btn:hover{opacity:.88}
+.login-btn:active{transform:scale(.98)}
+.login-err{
+  margin-top:12px;padding:10px 14px;
+  background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.25);
+  border-radius:8px;color:var(--red);font-size:13px;display:none;
+}
+.demo-creds{
+  margin-top:20px;padding:14px;background:rgba(255,255,255,.03);
+  border:1px solid var(--border);border-radius:10px;font-size:12.5px;
+  color:var(--muted);line-height:2;
+}
+.demo-creds .tag{color:var(--blue2);font-weight:600}
+
+/* ─── APP SHELL ─── */
+#app{display:none;flex-direction:column;min-height:100vh;position:relative;z-index:1}
+
+/* ─── TOPBAR ─── */
+.topbar{
+  height:58px;background:rgba(13,17,23,.85);
+  backdrop-filter:blur(12px);border-bottom:1px solid var(--border);
+  padding:0 24px;display:flex;align-items:center;justify-content:space-between;
+  position:sticky;top:0;z-index:100;
+}
+.tb-left{display:flex;align-items:center;gap:12px}
+.tb-logo{
+  width:32px;height:32px;border-radius:8px;
+  background:linear-gradient(135deg,var(--blue),var(--purple));
+  display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0;
+}
+.tb-name{font-size:16px;font-weight:800;letter-spacing:-.3px}
+.tb-pc{
+  padding:3px 10px;background:rgba(255,255,255,.06);
+  border:1px solid var(--border);border-radius:6px;
+  font-size:11px;font-weight:600;color:var(--muted2);font-family:var(--mono);letter-spacing:.3px;
+}
+.tb-right{display:flex;align-items:center;gap:10px}
+.live-chip{
+  display:flex;align-items:center;gap:6px;padding:5px 12px;
+  background:rgba(34,197,94,.08);border:1px solid rgba(34,197,94,.2);
+  border-radius:20px;font-size:11.5px;color:var(--green);font-weight:600;
+}
+.pulse{width:6px;height:6px;border-radius:50%;background:var(--green);animation:blink 1.8s ease-in-out infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.2}}
+.user-pill{
+  display:flex;align-items:center;gap:8px;padding:5px 12px;
+  background:rgba(255,255,255,.05);border:1px solid var(--border);border-radius:8px;
+  font-size:13px;cursor:default;
+}
+.u-avatar{
+  width:24px;height:24px;border-radius:6px;
+  background:linear-gradient(135deg,var(--green),var(--blue));
+  display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;
+}
+.logout{
+  padding:5px 14px;background:transparent;border:1px solid var(--border);
+  border-radius:8px;color:var(--muted);font-family:var(--font);font-size:12.5px;
+  cursor:pointer;transition:all .2s;
+}
+.logout:hover{border-color:rgba(239,68,68,.5);color:var(--red)}
+
+/* ─── TABS ─── */
+.tabs{
+  background:rgba(13,17,23,.7);border-bottom:1px solid var(--border);
+  padding:0 24px;display:flex;gap:2px;
+}
+.tab{
+  padding:0 16px;height:46px;font-size:13.5px;font-weight:600;
+  color:var(--muted);cursor:pointer;
+  border:none;background:none;font-family:var(--font);
+  position:relative;transition:color .2s;border-bottom:2px solid transparent;
+}
+.tab:hover{color:var(--text)}
+.tab.on{color:var(--blue2);border-bottom-color:var(--blue)}
+
+/* ─── CONTENT ─── */
+.content{padding:24px;flex:1}
+.page{display:none}
+.page.on{display:block;animation:fadeIn .25s ease}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+
+/* ─── RISK PANEL ─── */
+.risk-panel{
+  background:var(--card);border:1px solid var(--border);border-radius:16px;
+  padding:20px 24px;margin-bottom:20px;display:flex;align-items:center;gap:24px;
+  position:relative;overflow:hidden;
+}
+.risk-panel::after{
+  content:'';position:absolute;right:-40px;top:-40px;
+  width:200px;height:200px;border-radius:50%;
+  background:var(--risk-glow,rgba(34,197,94,.04));
+  filter:blur(40px);pointer-events:none;transition:background .5s;
+}
+.risk-ring{
+  width:96px;height:96px;flex-shrink:0;position:relative;
+}
+.risk-ring svg{width:100%;height:100%;transform:rotate(-90deg)}
+.risk-ring-bg{fill:none;stroke:rgba(255,255,255,.06);stroke-width:6}
+.risk-ring-fill{fill:none;stroke-width:6;stroke-linecap:round;stroke-dasharray:251.2;transition:stroke-dashoffset .6s ease,stroke .4s}
+.risk-ring-text{
+  position:absolute;inset:0;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;
+}
+.risk-pct{font-size:22px;font-weight:800;font-family:var(--mono);line-height:1}
+.risk-tag{font-size:10px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;margin-top:2px}
+.risk-body{flex:1}
+.risk-title{font-size:20px;font-weight:800;letter-spacing:-.4px}
+.risk-sub{font-size:13px;color:var(--muted2);margin-top:5px;line-height:1.55}
+.streak-badge{
+  display:inline-flex;align-items:center;gap:6px;margin-top:10px;
+  padding:4px 12px;background:rgba(249,115,22,.1);
+  border:1px solid rgba(249,115,22,.25);border-radius:20px;
+  font-size:11.5px;color:var(--orange);font-weight:600;
+}
+.streak-badge.hidden{display:none}
+.risk-pc{font-size:11px;font-family:var(--mono);color:var(--muted);margin-top:2px}
+
+/* ─── ALERT BANNER ─── */
+.alert-bar{
+  display:none;align-items:center;gap:14px;
+  padding:12px 18px;margin-bottom:16px;
+  background:rgba(239,68,68,.07);border:1px solid rgba(239,68,68,.2);
+  border-radius:12px;
+}
+.alert-bar.show{display:flex}
+.alert-icon{font-size:20px}
+.alert-text{font-size:13px;line-height:1.5;color:var(--muted2)}
+.alert-text strong{color:var(--red)}
+
+/* ─── METRICS GRID ─── */
+.mgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:12px;margin-bottom:20px}
+.mcard{
+  background:var(--card);border:1px solid var(--border);
+  border-radius:14px;padding:16px;cursor:default;
+  transition:border-color .2s,transform .15s;position:relative;overflow:hidden;
+}
+.mcard::before{
+  content:'';position:absolute;top:0;left:0;right:0;height:2px;
+  background:var(--accent,var(--blue));opacity:.6;border-radius:2px 2px 0 0;transition:background .3s;
+}
+.mcard:hover{border-color:var(--border2);transform:translateY(-2px)}
+.mcard-icon{font-size:18px;margin-bottom:10px;line-height:1}
+.mcard-label{font-size:11px;font-weight:700;color:var(--muted);letter-spacing:.5px;text-transform:uppercase}
+.mcard-val{font-size:24px;font-weight:800;font-family:var(--mono);margin-top:4px;line-height:1}
+.mcard-unit{font-size:12px;color:var(--muted);font-weight:400}
+.mcard-bar{height:3px;background:rgba(255,255,255,.07);border-radius:3px;margin-top:10px}
+.mcard-fill{height:100%;border-radius:3px;transition:width .5s ease,background .3s}
+
+/* ─── CHARTS ─── */
+.cgrid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:20px}
+@media(max-width:860px){.cgrid{grid-template-columns:1fr}}
+.ccard{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:18px}
+.ccard-title{font-size:13px;font-weight:700;margin-bottom:14px;color:var(--muted2);letter-spacing:.2px}
+.ccard-title span{color:var(--muted);font-weight:400}
+.cwrap{position:relative;height:160px}
+
+/* ─── ADMIN ─── */
+.search-row{display:flex;gap:10px;margin-bottom:24px}
+.search-inp{
+  flex:1;padding:11px 16px;background:rgba(255,255,255,.04);
+  border:1px solid var(--border);border-radius:10px;
+  color:var(--text);font-family:var(--mono);font-size:14px;outline:none;transition:border .2s;
+}
+.search-inp:focus{border-color:var(--blue)}
+.search-inp::placeholder{color:var(--muted)}
+.sbtn{
+  padding:11px 22px;background:var(--blue);border:none;border-radius:10px;
+  color:#fff;font-family:var(--font);font-size:13.5px;font-weight:700;cursor:pointer;transition:opacity .2s;
+}
+.sbtn:hover{opacity:.85}
+.rbtn{
+  padding:11px 16px;background:rgba(255,255,255,.05);border:1px solid var(--border);
+  border-radius:10px;color:var(--muted);font-size:15px;cursor:pointer;transition:all .2s;
+}
+.rbtn:hover{color:var(--text);border-color:var(--border2)}
+
+/* ─── STAT ROW ─── */
+.stat-row{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px}
+@media(max-width:700px){.stat-row{grid-template-columns:repeat(2,1fr)}}
+.scard{
+  background:var(--card);border:1px solid var(--border);border-radius:12px;padding:15px 18px;
+}
+.scard-label{font-size:11px;font-weight:700;color:var(--muted);letter-spacing:.5px;text-transform:uppercase}
+.scard-val{font-size:26px;font-weight:800;font-family:var(--mono);margin-top:5px}
+.scard-sub{font-size:11px;color:var(--muted);margin-top:2px}
+.c-green{color:var(--green)}.c-red{color:var(--red)}.c-yellow{color:var(--yellow)}.c-blue{color:var(--blue2)}
+
+/* ─── TABLE ─── */
+.tcard{background:var(--card);border:1px solid var(--border);border-radius:14px;overflow:hidden}
+.thead2{
+  padding:15px 18px;border-bottom:1px solid var(--border);
+  display:flex;align-items:center;justify-content:space-between;
+}
+.thead2 h3{font-size:14px;font-weight:700}
+.htable{width:100%;border-collapse:collapse;font-size:12.5px}
+.htable th{
+  padding:9px 15px;text-align:left;font-size:11px;color:var(--muted);
+  font-weight:700;letter-spacing:.4px;text-transform:uppercase;
+  border-bottom:1px solid var(--border);background:rgba(255,255,255,.02);
+}
+.htable td{padding:10px 15px;border-bottom:1px solid rgba(255,255,255,.04);vertical-align:middle}
+.htable tr:last-child td{border-bottom:none}
+.htable tr:hover td{background:rgba(255,255,255,.02)}
+.pill{display:inline-block;padding:2px 9px;border-radius:20px;font-size:11px;font-weight:700}
+.p-ok{background:rgba(34,197,94,.12);color:var(--green);border:1px solid rgba(34,197,94,.2)}
+.p-warn{background:rgba(234,179,8,.12);color:var(--yellow);border:1px solid rgba(234,179,8,.2)}
+.p-hi{background:rgba(249,115,22,.12);color:var(--orange);border:1px solid rgba(249,115,22,.2)}
+.p-crit{background:rgba(239,68,68,.12);color:var(--red);border:1px solid rgba(239,68,68,.2)}
+.rbar{display:inline-flex;align-items:center;gap:7px}
+.rmini{width:50px;height:5px;background:rgba(255,255,255,.08);border-radius:3px;overflow:hidden}
+.rmini-fill{height:100%;border-radius:3px}
+.ts{font-family:var(--mono);font-size:11px;color:var(--muted)}
+
+/* ─── EMPTY/LOADING ─── */
+.empty{text-align:center;padding:60px 20px;color:var(--muted)}
+.empty-icon{font-size:44px;margin-bottom:14px;opacity:.4}
+.spin{width:28px;height:28px;border:2.5px solid var(--border2);border-top-color:var(--blue);border-radius:50%;animation:rot .7s linear infinite;margin:0 auto 14px}
+@keyframes rot{to{transform:rotate(360deg)}}
+
+/* ─── FULL CHART ─── */
+.cgrid.wide .ccard.full{grid-column:1/-1}
+.cwrap.tall{height:240px}
+
+/* ─── FOOTER ─── */
+.footer{
+  border-top:1px solid var(--border);padding:12px 24px;
+  display:flex;align-items:center;justify-content:space-between;
+  font-size:11.5px;color:var(--muted);
+}
+</style>
+</head>
+<body>
+
+<!-- ═══════ LOGIN ═══════ -->
+<div id="login-page">
+  <div class="login-wrap">
+    <div class="login-brand">
+      <div class="login-icon">🛡</div>
+      <div>
+        <div class="login-brand-name">DeviceGuard</div>
+        <div class="login-brand-tag">IT Health Monitor</div>
+      </div>
+    </div>
+    <div class="field">
+      <label>Email</label>
+      <input type="email" id="em" value="user@demo.com" placeholder="you@example.com"/>
+    </div>
+    <div class="field">
+      <label>Password</label>
+      <input type="password" id="pw" value="user123" placeholder="••••••••"/>
+    </div>
+    <button class="login-btn" onclick="doLogin()">Sign In →</button>
+    <div class="login-err" id="lerr">Galat email ya password.</div>
+    <div class="demo-creds">
+      <span class="tag">User:</span> user@demo.com / user123<br>
+      <span class="tag">IT Admin:</span> it@dept.com / itadmin
+    </div>
+  </div>
+</div>
+
+<!-- ═══════ APP ═══════ -->
+<div id="app">
+  <nav class="topbar">
+    <div class="tb-left">
+      <div class="tb-logo">🛡</div>
+      <span class="tb-name">SysGuard</span>
+      <span class="tb-pc" id="pc-badge">—</span>
+    </div>
+    <div class="tb-right">
+      <div class="live-chip"><span class="pulse"></span> LIVE</div>
+      <div class="user-pill">
+        <div class="u-avatar" id="u-av">U</div>
+        <span id="u-name">User</span>
+      </div>
+      <button class="logout" onclick="doLogout()">Logout</button>
+    </div>
+  </nav>
+
+  <div class="tabs" id="tabbar">
+    <button class="tab on" onclick="goTab('t-user',this)">My PC Health</button>
+    <button class="tab" onclick="goTab('t-admin',this)" id="admin-tab" style="display:none">IT Dashboard</button>
+  </div>
+
+  <div class="content">
+    <!-- ── USER PAGE ── -->
+    <div class="page on" id="t-user">
+
+      <div class="alert-bar" id="alert-bar">
+        <span class="alert-icon">⚠</span>
+        <div class="alert-text">
+          <strong>Alert Active:</strong> Sustained degradation detected. IT department ko email bhej diya gaya. <span id="alert-rsn"></span>
+        </div>
+      </div>
+
+      <div class="risk-panel" id="risk-panel">
+        <div class="risk-ring">
+          <svg viewBox="0 0 90 90">
+            <circle class="risk-ring-bg" cx="45" cy="45" r="40"/>
+            <circle class="risk-ring-fill" id="ring-fill" cx="45" cy="45" r="40" stroke="#22c55e" stroke-dashoffset="251.2"/>
+          </svg>
+          <div class="risk-ring-text">
+            <div class="risk-pct" id="r-pct" style="color:#22c55e">—</div>
+            <div class="risk-tag" id="r-tag" style="color:#22c55e">RISK</div>
+          </div>
+        </div>
+        <div class="risk-body">
+          <div class="risk-title" id="r-title">Initialising…</div>
+          <div class="risk-pc" id="r-pc">collecting data...</div>
+          <div class="risk-sub" id="r-sub">System metrics load ho rahe hain. Thoda wait karein.</div>
+          <div class="streak-badge hidden" id="streak-badge">⚡ <span id="streak-n">0</span> consecutive elevated checks</div>
+        </div>
+      </div>
+
+      <div class="mgrid" id="mgrid"></div>
+
+      <div class="cgrid">
+        <div class="ccard">
+          <div class="ccard-title">CPU & RAM <span>% usage</span></div>
+          <div class="cwrap"><canvas id="c-cpuram"></canvas></div>
+        </div>
+        <div class="ccard">
+          <div class="ccard-title">Disk & Battery <span>% levels</span></div>
+          <div class="cwrap"><canvas id="c-diskbat"></canvas></div>
+        </div>
+        <div class="ccard">
+          <div class="ccard-title">Temperature & Humidity <span>sensors</span></div>
+          <div class="cwrap"><canvas id="c-env"></canvas></div>
+        </div>
+        <div class="ccard">
+          <div class="ccard-title">Risk Score <span>model output %</span></div>
+          <div class="cwrap"><canvas id="c-risk"></canvas></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── ADMIN PAGE ── -->
+    <div class="page" id="t-admin">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px">
+        <div>
+          <div style="font-size:20px;font-weight:800;letter-spacing:-.4px">IT Dashboard</div>
+          <div style="font-size:13px;color:var(--muted);margin-top:3px">PC health history search karo</div>
+        </div>
+        <div class="live-chip"><span class="pulse"></span> MONITORING</div>
+      </div>
+
+      <div class="search-row">
+        <input class="search-inp" id="pc-inp" placeholder="PC Number enter karo (e.g. PC-001)" />
+        <button class="sbtn" onclick="searchPC()">Search</button>
+        <button class="rbtn" onclick="loadThisPC()" title="Current machine">↻</button>
+      </div>
+
+      <div id="admin-content">
+        <div class="empty">
+          <div class="empty-icon">🖥</div>
+          <div>Upar PC number daalo ya ↻ click karo current machine dekhne ke liye</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <footer class="footer">
+    <span>SysGuard v2.0 — 4th Semester Project</span>
+    <span id="footer-ts" class="ts"></span>
+  </footer>
+</div>
+
+<script>
+const API = 'http://localhost:5000';
+const DEMO_USERS = {
+  'user@demo.com': {password:'user123', role:'user',  name:'Student User'},
+  'it@dept.com':   {password:'itadmin', role:'admin', name:'IT Admin'},
+};
+
+/* ── Auth ── */
+let curUser = null, token = null;
+
+async function doLogin(){
+  const email = document.getElementById('em').value.trim().toLowerCase();
+  const pass  = document.getElementById('pw').value;
+  const err   = document.getElementById('lerr');
+  err.style.display = 'none';
+  let u = null;
+  try {
+    const r = await fetch(`${API}/login`,{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({email,password:pass}),
+      signal:AbortSignal.timeout(3000)
+    });
+    if(r.ok){const d=await r.json();u=d;token=d.token;}
+  } catch {
+    const demo = DEMO_USERS[email];
+    if(demo && demo.password===pass){u={role:demo.role,name:demo.name};token='demo';}
+  }
+  if(!u){err.style.display='block';return;}
+  curUser = u;
+  document.getElementById('u-name').textContent  = u.name;
+  document.getElementById('u-av').textContent    = u.name[0].toUpperCase();
+  if(u.role==='admin') document.getElementById('admin-tab').style.display='';
+  document.getElementById('login-page').style.display='none';
+  document.getElementById('app').style.display='flex';
+  startMonitor();
+  startClock();
+}
+
+function doLogout(){
+  clearInterval(monInt);curUser=null;token=null;
+  document.getElementById('app').style.display='none';
+  document.getElementById('login-page').style.display='flex';
+  document.getElementById('admin-tab').style.display='none';
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('on'));
+  document.querySelector('.tab').classList.add('on');
+  goTab('t-user',document.querySelector('.tab'));
+}
+
+document.getElementById('pw').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin();});
+
+/* ── Tabs ── */
+function goTab(id,btn){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('on'));
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('on'));
+  document.getElementById(id).classList.add('on');
+  btn.classList.add('on');
+}
+
+/* ── Clock ── */
+function startClock(){
+  setInterval(()=>{
+    document.getElementById('footer-ts').textContent=new Date().toLocaleString('en-IN',{hour12:false});
+  },1000);
+}
+
+/* ── Mock data ── */
+function mockData(){
+  const cpu=20+Math.random()*55,ram=30+Math.random()*45,disk=50+Math.random()*25;
+  const temp=35+cpu*.35+Math.random()*4,hum=38+Math.random()*18;
+  const fan=temp*35+cpu*18+Math.random()*80,bat=55+Math.random()*38,dust=8+Math.random()*18;
+  const risk=Math.random()*.6;
+  return{
+    pc_number:'PC-042',risk,risk_pct:+(risk*100).toFixed(1),
+    status:risk>=.85?'CRITICAL':risk>=.70?'HIGH RISK':risk>=.50?'WARNING':'HEALTHY',
+    streak:0,timestamp:new Date().toISOString(),
+    metrics:{cpu_raw:+cpu.toFixed(1),ram_raw:+ram.toFixed(1),disk_raw:+disk.toFixed(1),
+      temperature_raw:+temp.toFixed(1),humidity_raw:+hum.toFixed(1),
+      fan_raw:Math.round(fan),dust_raw:+dust.toFixed(1),battery_raw:+bat.toFixed(1)}
+  };
+}
+
+/* ── Metric definitions ── */
+const MDEFS=[
+  {key:'cpu_raw',    label:'CPU',        unit:'%',   icon:'🖥',  max:100, acc:'#4f8ef7', w:75,  c:90},
+  {key:'ram_raw',    label:'RAM',        unit:'%',   icon:'💾',  max:100, acc:'#a78bfa', w:75,  c:90},
+  {key:'disk_raw',   label:'Disk',       unit:'%',   icon:'💿',  max:100, acc:'#eab308', w:80,  c:92},
+  {key:'temperature_raw',label:'Temp',   unit:'°C',  icon:'🌡',  max:100, acc:'#ef4444', w:70,  c:85},
+  {key:'humidity_raw',label:'Humidity',  unit:'%',   icon:'💧',  max:100, acc:'#22d3ee', w:80,  c:95},
+  {key:'fan_raw',    label:'Fan',        unit:' RPM',icon:'🌀',  max:5000,acc:'#a855f7', w:3500,c:4500},
+  {key:'dust_raw',   label:'Dust',       unit:'%',   icon:'🌫',  max:100, acc:'#a8a29e', w:60,  c:80},
+  {key:'battery_raw',label:'Battery',    unit:'%',   icon:'🔋',  max:100, acc:'#22c55e', w:20,  c:10, inv:true},
+];
+
+function mColor(d,v){
+  if(d.inv) return v<=d.c?'#ef4444':v<=d.w?'#eab308':d.acc;
+  return v>=d.c?'#ef4444':v>=d.w?'#eab308':d.acc;
+}
+
+function buildGrid(metrics){
+  const g=document.getElementById('mgrid');
+  if(!g.children.length){
+    g.innerHTML=MDEFS.map(d=>`
+      <div class="mcard" id="mc-${d.key}" style="--accent:${d.acc}">
+        <div class="mcard-icon">${d.icon}</div>
+        <div class="mcard-label">${d.label}</div>
+        <div class="mcard-val" id="mv-${d.key}">—<span class="mcard-unit">${d.unit}</span></div>
+        <div class="mcard-bar"><div class="mcard-fill" id="mb-${d.key}"></div></div>
+      </div>`).join('');
+  }
+  MDEFS.forEach(d=>{
+    const v=metrics[d.key];if(v===undefined)return;
+    const col=mColor(d,v);
+    document.getElementById(`mv-${d.key}`).innerHTML=`${d.key==='fan_raw'?Math.round(v):v}<span class="mcard-unit">${d.unit}</span>`;
+    const pct=Math.min(100,(v/d.max)*100);
+    const bar=document.getElementById(`mb-${d.key}`);
+    bar.style.width=pct+'%';bar.style.background=col;
+    document.getElementById(`mc-${d.key}`).style.setProperty('--accent',col);
+  });
+}
+
+/* ── Risk ring ── */
+function riskCol(r){
+  return r>=.85?'#ef4444':r>=.70?'#f97316':r>=.50?'#eab308':'#22c55e';
+}
+function riskMsg(r){
+  return r>=.85?'Critical degradation! Turant dhyan chahiye.':
+         r>=.70?'Multiple metrics high hain. Closely monitor karo.':
+         r>=.50?'Kuch metrics elevated hain. Possible load spike.':
+         'Sab kuch normal hai. Koi problem nahi.';
+}
+
+function updateRisk(data){
+  const r=data.risk||0,pct=data.risk_pct||0;
+  const col=riskCol(r);
+  const circ=2*Math.PI*40;
+  const off=circ*(1-r);
+  const fill=document.getElementById('ring-fill');
+  fill.style.strokeDashoffset=off;
+  fill.style.stroke=col;
+  document.getElementById('r-pct').textContent=pct+'%';
+  document.getElementById('r-pct').style.color=col;
+  document.getElementById('r-tag').textContent=data.status||'RISK';
+  document.getElementById('r-tag').style.color=col;
+  document.getElementById('r-title').textContent=data.status||'—';
+  document.getElementById('r-sub').textContent=riskMsg(r);
+  document.getElementById('r-pc').textContent='Machine: '+(data.pc_number||'—');
+  document.getElementById('pc-badge').textContent=data.pc_number||'—';
+  document.getElementById('risk-panel').style.setProperty('--risk-glow',`rgba(${col==='#22c55e'?'34,197,94':col==='#eab308'?'234,179,8':col==='#f97316'?'249,115,22':'239,68,68'},.06)`);
+  const s=data.streak||0;
+  document.getElementById('streak-n').textContent=s;
+  document.getElementById('streak-badge').classList.toggle('hidden',s<5);
+  const bar=document.getElementById('alert-bar');
+  if(s>=5&&r>=.70)bar.classList.add('show');else bar.classList.remove('show');
+}
+
+/* ── Charts ── */
+const COPTS={
+  responsive:true,maintainAspectRatio:false,animation:{duration:250},
+  plugins:{legend:{display:false}},
+  scales:{
+    x:{display:false},
+    y:{grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#6b7a96',font:{size:10}},border:{color:'rgba(255,255,255,.05)'}}
+  },
+  elements:{point:{radius:0},line:{tension:0.4,borderWidth:1.8}}
+};
+let cCR,cDB,cEnv,cRisk,chartsOk=false;
+const PTS=30;
+
+function initCharts(){
+  const mk=(id,datasets,mn=0,mx=100)=>new Chart(id,{
+    type:'line',options:{...COPTS,scales:{...COPTS.scales,y:{...COPTS.scales.y,min:mn,max:mx}}},
+    data:{labels:[],datasets}
+  });
+  cCR  =mk('c-cpuram',[{label:'CPU', data:[],borderColor:'#4f8ef7',backgroundColor:'rgba(79,142,247,.07)',fill:true},{label:'RAM',data:[],borderColor:'#a78bfa',backgroundColor:'rgba(167,139,250,.05)',fill:true}]);
+  cDB  =mk('c-diskbat',[{label:'Disk',data:[],borderColor:'#eab308',backgroundColor:'rgba(234,179,8,.07)',fill:true},{label:'Bat',data:[],borderColor:'#22c55e',backgroundColor:'rgba(34,197,94,.05)',fill:true}]);
+  cEnv =mk('c-env',[{label:'Temp',data:[],borderColor:'#ef4444',backgroundColor:'rgba(239,68,68,.07)',fill:true},{label:'Hum',data:[],borderColor:'#22d3ee',backgroundColor:'rgba(34,211,238,.05)',fill:true}],0,120);
+  cRisk=mk('c-risk',[{label:'Risk',data:[],borderColor:'#f97316',backgroundColor:'rgba(249,115,22,.1)',fill:true}]);
+}
+
+function pushCharts(data,rPct){
+  const t=new Date().toLocaleTimeString('en-IN',{hour12:false,hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  const m=data.metrics;
+  function push(ch,...vals){
+    ch.data.labels.push(t);
+    vals.forEach((v,i)=>ch.data.datasets[i].data.push(v));
+    if(ch.data.labels.length>PTS){ch.data.labels.shift();ch.data.datasets.forEach(d=>d.data.shift());}
+    ch.update('none');
+  }
+  push(cCR,m.cpu_raw,m.ram_raw);
+  push(cDB,m.disk_raw,m.battery_raw);
+  push(cEnv,m.temperature_raw,m.humidity_raw);
+  push(cRisk,rPct);
+}
+
+/* ── Monitor loop ── */
+let monInt=null;
+
+async function fetchUpdate(){
+  let d;
+  try{
+    const r=await fetch(`${API}/predict`,{signal:AbortSignal.timeout(3000)});
+    d=await r.json();
+  }catch{d=mockData();}
+  if(!d.metrics)return;
+  updateRisk(d);
+  buildGrid(d.metrics);
+  if(!chartsOk){initCharts();chartsOk=true;}
+  pushCharts(d,d.risk_pct);
+}
+
+function startMonitor(){fetchUpdate();monInt=setInterval(fetchUpdate,5000);}
+
+/* ── Admin ── */
+async function loadThisPC(){
+  document.getElementById('pc-inp').value='';
+  showLoading();
+  let hist=[];
+  try{const r=await fetch(`${API}/history`,{signal:AbortSignal.timeout(4000)});hist=await r.json();}
+  catch{hist=genMock(60);}
+  renderAdmin(hist,'Current Machine');
+}
+
+async function searchPC(){
+  const pc=document.getElementById('pc-inp').value.trim();
+  if(!pc){loadThisPC();return;}
+  showLoading();
+  let hist=[];
+  try{
+    const r=await fetch(`${API}/history`,{signal:AbortSignal.timeout(4000)});
+    const all=await r.json();
+    hist=all.filter(h=>(h.pc_number||'').toLowerCase().includes(pc.toLowerCase()));
+    if(!hist.length)hist=genMock(60,pc);
+  }catch{hist=genMock(60,pc);}
+  renderAdmin(hist,pc);
+}
+
+document.getElementById('pc-inp').addEventListener('keydown',e=>{if(e.key==='Enter')searchPC();});
+
+function showLoading(){
+  document.getElementById('admin-content').innerHTML=`<div class="empty"><div class="spin"></div><div>Data load ho raha hai…</div></div>`;
+}
+
+function genMock(n,pc='PC-042'){
+  return Array.from({length:n},(_,i)=>{
+    const risk=Math.random()*.85;
+    return{pc_number:pc,risk,risk_pct:+(risk*100).toFixed(1),
+      status:risk>=.85?'CRITICAL':risk>=.70?'HIGH RISK':risk>=.50?'WARNING':'HEALTHY',
+      streak:0,timestamp:new Date(Date.now()-(n-i)*5000).toISOString(),
+      metrics:{cpu_raw:+(20+Math.random()*60).toFixed(1),ram_raw:+(30+Math.random()*50).toFixed(1),
+        disk_raw:+(50+Math.random()*25).toFixed(1),temperature_raw:+(35+Math.random()*30).toFixed(1),
+        humidity_raw:+(38+Math.random()*28).toFixed(1),fan_raw:Math.round(1000+Math.random()*2500),
+        dust_raw:+(5+Math.random()*25).toFixed(1),battery_raw:+(40+Math.random()*55).toFixed(1)}};
+  });
+}
+
+function pill(status){
+  const m={'HEALTHY':'p-ok','WARNING':'p-warn','HIGH RISK':'p-hi','CRITICAL':'p-crit'};
+  return`<span class="pill ${m[status]||'p-warn'}">${status}</span>`;
+}
+
+function renderAdmin(hist,label){
+  if(!hist.length){
+    document.getElementById('admin-content').innerHTML=`<div class="empty"><div class="empty-icon">🔍</div><div><strong>${label}</strong> ke liye koi data nahi mila</div></div>`;return;
+  }
+  const last=hist.at(-1)||{};
+  const alerts=hist.filter(h=>h.risk>=.70).length;
+  const avg=(hist.reduce((s,h)=>s+(h.risk||0),0)/hist.length*100).toFixed(1);
+  const max=(Math.max(...hist.map(h=>h.risk||0))*100).toFixed(1);
+
+  const statsHtml=`<div class="stat-row">
+    <div class="scard"><div class="scard-label">PC</div><div class="scard-val c-blue" style="font-size:17px">${label}</div><div class="scard-sub">Last: ${new Date(last.timestamp||Date.now()).toLocaleTimeString()}</div></div>
+    <div class="scard"><div class="scard-label">Data Points</div><div class="scard-val c-blue">${hist.length}</div><div class="scard-sub">~${(hist.length*5/60).toFixed(0)} min</div></div>
+    <div class="scard"><div class="scard-label">Avg Risk</div><div class="scard-val ${avg>60?'c-red':avg>40?'c-yellow':'c-green'}">${avg}%</div><div class="scard-sub">Peak: ${max}%</div></div>
+    <div class="scard"><div class="scard-label">Alert Events</div><div class="scard-val ${alerts>5?'c-red':'c-yellow'}">${alerts}</div><div class="scard-sub">risk ≥ 70%</div></div>
+  </div>`;
+
+  const chartHtml=`<div class="cgrid wide" style="margin-bottom:20px">
+    <div class="ccard full"><div class="ccard-title">Risk History <span>for ${label}</span></div><div class="cwrap tall"><canvas id="a-risk"></canvas></div></div>
+    <div class="ccard"><div class="ccard-title">CPU & RAM <span>history</span></div><div class="cwrap"><canvas id="a-cr"></canvas></div></div>
+    <div class="ccard"><div class="ccard-title">Temp & Fan <span>sensors</span></div><div class="cwrap"><canvas id="a-tf"></canvas></div></div>
+  </div>`;
+
+  const rows=hist.slice(-20).reverse().map(h=>{
+    const m=h.metrics||{},rp=(h.risk*100||0).toFixed(1);
+    const bc=rp>=85?'#ef4444':rp>=70?'#f97316':rp>=50?'#eab308':'#22c55e';
+    return`<tr>
+      <td class="ts">${new Date(h.timestamp).toLocaleString('en-IN',{hour12:false})}</td>
+      <td>${pill(h.status)}</td>
+      <td><div class="rbar"><div class="rmini"><div class="rmini-fill" style="width:${rp}%;background:${bc}"></div></div><span class="ts" style="font-size:12px">${rp}%</span></div></td>
+      <td class="ts">${m.cpu_raw||'—'}%</td><td class="ts">${m.ram_raw||'—'}%</td>
+      <td class="ts">${m.disk_raw||'—'}%</td><td class="ts">${m.temperature_raw||'—'}°C</td>
+      <td class="ts">${m.battery_raw||'—'}%</td>
+    </tr>`;
+  }).join('');
+
+  const tableHtml=`<div class="tcard">
+    <div class="thead2"><h3>Health Event Log <span style="color:var(--muted);font-size:12px;font-weight:400">(last 20)</span></h3></div>
+    <div style="overflow-x:auto">
+      <table class="htable">
+        <thead><tr><th>Timestamp</th><th>Status</th><th>Risk</th><th>CPU</th><th>RAM</th><th>Disk</th><th>Temp</th><th>Battery</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>
+  </div>`;
+
+  document.getElementById('admin-content').innerHTML=statsHtml+chartHtml+tableHtml;
+
+  const ao={responsive:true,maintainAspectRatio:false,animation:{duration:0},plugins:{legend:{display:false}},
+    scales:{x:{ticks:{color:'#6b7a96',font:{size:9},maxRotation:0,autoSkip:true,maxTicksLimit:10},grid:{color:'rgba(255,255,255,.03)'},border:{color:'rgba(255,255,255,.04)'}},
+      y:{ticks:{color:'#6b7a96',font:{size:10}},grid:{color:'rgba(255,255,255,.04)'},border:{color:'rgba(255,255,255,.04)'}}},
+    elements:{point:{radius:0},line:{tension:0.4,borderWidth:1.8}}};
+
+  const sk=Math.max(1,Math.ceil(hist.length/60));
+  const s=arr=>arr.filter((_,i)=>i%sk===0);
+  const labs=s(hist).map(h=>new Date(h.timestamp).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',hour12:false}));
+  const sm=(arr,f)=>s(arr).map(h=>(h.metrics||{})[f]||0);
+
+  new Chart('a-risk',{type:'line',options:{...ao,scales:{...ao.scales,y:{...ao.scales.y,min:0,max:100}}},
+    data:{labels:labs,datasets:[{data:s(hist).map(h=>+(h.risk*100).toFixed(1)),borderColor:'#f97316',backgroundColor:'rgba(249,115,22,.1)',fill:true}]}});
+  new Chart('a-cr',{type:'line',options:{...ao,scales:{...ao.scales,y:{...ao.scales.y,min:0,max:100}}},
+    data:{labels:labs,datasets:[{data:sm(hist,'cpu_raw'),borderColor:'#4f8ef7',backgroundColor:'rgba(79,142,247,.08)',fill:true},{data:sm(hist,'ram_raw'),borderColor:'#a78bfa',backgroundColor:'rgba(167,139,250,.05)',fill:true}]}});
+  new Chart('a-tf',{type:'line',options:{...ao,scales:{...ao.scales,y:{...ao.scales.y,min:0}}},
+    data:{labels:labs,datasets:[{data:sm(hist,'temperature_raw'),borderColor:'#ef4444',backgroundColor:'rgba(239,68,68,.08)',fill:true},{data:sm(hist,'fan_raw').map(v=>+(v/100).toFixed(1)),borderColor:'#a855f7',backgroundColor:'rgba(168,85,247,.05)',fill:true}]}});
+}
+</script>
+</body>
+</html>

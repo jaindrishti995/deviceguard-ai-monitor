@@ -1,41 +1,81 @@
-#metrics_collector.py
+"""
+metrics_collector.py
+Real metrics: cpu, ram, disk, battery
+Simulated: temperature, humidity, fan, dust
+(using formulas consistent with training data)
+"""
+
 import psutil
-import random
+import numpy as np
+import time
 
-def clamp(x, lo=0.0, hi=1.0):
-    return max(lo, min(hi, x))
+_rng = np.random.default_rng()
 
-def get_system_metrics():
-    cpu_raw = psutil.cpu_percent(interval=1)
-    ram_raw = psutil.virtual_memory().percent
+_dust_accumulator = 0.0
+_last_time = time.time()
+
+
+def get_system_metrics() -> dict:
+    global _dust_accumulator, _last_time
+
+    # ── Real metrics ──────────────────────────────────────────────
+    cpu_raw  = psutil.cpu_percent(interval=1)
+    ram_raw  = psutil.virtual_memory().percent
     disk_raw = psutil.disk_usage("/").percent
 
-    battery_info = psutil.sensors_battery()
-    battery_raw = battery_info.percent if battery_info else 75.0
+    battery = psutil.sensors_battery()
+    battery_raw = battery.percent if battery else 80.0
 
-    temperature_raw = 35 + cpu_raw * 0.45 + random.uniform(-2, 2)
-    temperature = temperature_raw / 100
+    # ── Simulated metrics (match training distributions) ──────────
+    # Temperature: correlated with CPU, with noise
+    temperature_raw = float(np.clip(
+        30 + cpu_raw * 0.45 + _rng.normal(0, 3),
+        20, 100
+    ))
 
-    fan_raw = clamp(temperature_raw * 40 + cpu_raw * 20, 0, 5000)
-    dust_raw = clamp(disk_raw * 0.3 + fan_raw * 0.005, 0, 100)
-    humidity_raw = clamp(30 + cpu_raw * 0.25 + temperature_raw * 0.15, 0, 100)
+    # Humidity: loosely correlated with temperature
+    humidity_raw = float(np.clip(
+        30 + temperature_raw * 0.15 + _rng.normal(0, 4),
+        20, 90
+    ))
 
+    # Fan speed: driven by temp + CPU
+    fan_raw = float(np.clip(
+        temperature_raw * 35 + cpu_raw * 18 + _rng.normal(0, 80),
+        0, 5000
+    ))
+
+    # Dust: accumulates slowly based on disk use and fan activity
+    now = time.time()
+    dt = now - _last_time
+    _last_time = now
+    _dust_accumulator = float(np.clip(
+        _dust_accumulator
+        + (disk_raw * 0.00002 + fan_raw * 0.000001) * dt
+        + _rng.uniform(0, 0.001),
+        0, 100
+    ))
+    dust_raw = _dust_accumulator
+
+    # ── Normalised [0,1] for model input ─────────────────────────
     return {
-        "cpu": cpu_raw/100,
-        "ram": ram_raw/100,
-        "disk": disk_raw/100,
-        "temperature": temperature,
-        "humidity": humidity_raw/100,
-        "fan": fan_raw/5000,
-        "dust": dust_raw/100,
-        "battery": battery_raw/100,
+        # Raw (for display & alert logic)
+        "cpu_raw":         round(cpu_raw, 1),
+        "ram_raw":         round(ram_raw, 1),
+        "disk_raw":        round(disk_raw, 1),
+        "temperature_raw": round(temperature_raw, 1),
+        "humidity_raw":    round(humidity_raw, 1),
+        "fan_raw":         round(fan_raw, 1),
+        "dust_raw":        round(dust_raw, 2),
+        "battery_raw":     round(battery_raw, 1),
 
-        "cpu_raw": cpu_raw,
-        "ram_raw": ram_raw,
-        "disk_raw": disk_raw,
-        "temperature_raw": temperature_raw,
-        "humidity_raw": humidity_raw,
-        "fan_raw": fan_raw,
-        "dust_raw": dust_raw,
-        "battery_raw": battery_raw
+        # Normalised (model features)
+        "cpu":         round(cpu_raw  / 100,  4),
+        "ram":         round(ram_raw  / 100,  4),
+        "disk":        round(disk_raw / 100,  4),
+        "temperature": round(temperature_raw / 120, 4),
+        "humidity":    round(humidity_raw    / 100, 4),
+        "fan":         round(fan_raw         / 5000,4),
+        "dust":        round(dust_raw        / 100, 4),
+        "battery":     round(battery_raw     / 100, 4),
     }
